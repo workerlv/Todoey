@@ -12,14 +12,19 @@ class ToDoListTableViewController: UITableViewController {
 
     var itemArr = ["To do samtin", "Samtin else", "And another"]
     
+    let defaults = UserDefaults.standard
+    
+    
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Uncomment the following line to preserve selection between presentations
-        // self.clearsSelectionOnViewWillAppear = false
-
-        // Uncomment the following line to display an Edit button in the navigation bar for this view controller.
-        // self.navigationItem.rightBarButtonItem = self.editButtonItem
+        if let items = defaults.array(forKey: "ToDoListArray") as? [String] {
+            
+            itemArr = items
+            
+        }
+        
     }
 
 
@@ -40,6 +45,8 @@ class ToDoListTableViewController: UITableViewController {
         let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
 
         // Configure the cell...
+        
+        
         
         cell.textLabel?.text = itemArr[indexPath.row]
 
@@ -115,6 +122,9 @@ class ToDoListTableViewController: UITableViewController {
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             
             self.itemArr.append(textField.text!)
+            
+            self.defaults.set(self.itemArr, forKey: "ToDoListArray")
+            
             self.tableView.reloadData()
 
         }

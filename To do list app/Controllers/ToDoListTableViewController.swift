@@ -7,22 +7,26 @@
 //
 
 import UIKit
+import CoreData
 
 class ToDoListTableViewController: UITableViewController {
 
     var itemArr = [Items]()
     
-    let defaults = UserDefaults.standard
+    var selectedCategory: Category? {
+        didSet {
+            loadItems()
+        }
+    }
     
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    let defaults = UserDefaults.standard
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+
+
     
     override func viewDidLoad() {
-        super.viewDidLoad()
-
-        
-        loadItems()
-
-        print("strada")
+        super.viewDidLoad()        
+       // print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         
     }
 
@@ -61,6 +65,16 @@ class ToDoListTableViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
+        //////
+        //delet from array and core data
+        //context.delete(itemArr[indexPath.row])
+        //itemArr.remove(at: indexPath.row)
+        //////
+        // update txt in table
+       // itemArr[indexPath.row].setValue("Completed", forKey: "title")
+        //////
+        
+        
         itemArr[indexPath.row].done = !itemArr[indexPath.row].done
 
         saveItems()
@@ -69,40 +83,9 @@ class ToDoListTableViewController: UITableViewController {
         
     }
 
-    /*
-    // Override to support conditional editing of the table view.
-    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        // Return false if you do not want the specified item to be editable.
-        return true
-    }
-    */
 
-    /*
-    // Override to support editing the table view.
-    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
-        if editingStyle == .delete {
-            // Delete the row from the data source
-            tableView.deleteRows(at: [indexPath], with: .fade)
-        } else if editingStyle == .insert {
-            // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
-        }    
-    }
-    */
 
-    /*
-    // Override to support rearranging the table view.
-    override func tableView(_ tableView: UITableView, moveRowAt fromIndexPath: IndexPath, to: IndexPath) {
-
-    }
-    */
-
-    /*
-    // Override to support conditional rearranging of the table view.
-    override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
-        // Return false if you do not want the item to be re-orderable.
-        return true
-    }
-    */
+    
 
     /*
     // MARK: - Navigation
@@ -124,8 +107,11 @@ class ToDoListTableViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             
-            let newItem = Items()
+            
+            let newItem = Items(context: self.context)
             newItem.title = textField.text!
+            newItem.done = false
+            newItem.parentCategory = self.selectedCategory
             
             self.itemArr.append(newItem)
             
@@ -147,36 +133,42 @@ class ToDoListTableViewController: UITableViewController {
     
     func saveItems() {
         
-        let encoder = PropertyListEncoder()
         
         do{
             
-            let data = try encoder.encode(itemArr)
-            try data.write(to: dataFilePath!)
+           try context.save()
+            
         } catch {
-            print("Error encoding item array, \(error)")
+
+            print("Error saving context \(error)")
+        
         }
         
         self.tableView.reloadData()
         
     }
     
-    func loadItems() {
+    func loadItems(with request: NSFetchRequest<Items> = Items.fetchRequest(), predicate: NSPredicate? = nil) {
+
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
         
-        if let data = try? Data(contentsOf: dataFilePath!) {
+        if let additionalPredicate = predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
+        } else {
             
-            let decoder = PropertyListDecoder()
-            
-            do {
-                
-                itemArr = try decoder.decode([Items].self, from: data)
-                
-            } catch {
-                print(error)
-            }
+            request.predicate = categoryPredicate
             
         }
         
+        do {
+       
+            itemArr = try context.fetch(request)
+        } catch {
+            
+            print("Error fetching \(error)")
+        }
+        
+        tableView.reloadData()
     }
     
     
@@ -184,7 +176,38 @@ class ToDoListTableViewController: UITableViewController {
     
 }
 
+extension ToDoListTableViewController: UISearchBarDelegate {
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        
+        let request : NSFetchRequest<Items> = Items.fetchRequest()
+        
+        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        // [cd] - sis izdara lai meklesana butu neatkariga no burta izmera (case vs CASE) un ari lai visadas garumzimes/ umlauti (diacritic) utt
+        
+        request.sortDescriptors  = [NSSortDescriptor(key: "title", ascending: true)]
+        
+        loadItems(with: request, predicate: predicate)
 
+        
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        
+        if searchBar.text?.count == 0 {
+            
+            loadItems()
+            
+            DispatchQueue.main.async {
+                
+                searchBar.resignFirstResponder()
+                
+            }
+        }
+    }
+    
+    
+}
 
 
 

@@ -7,11 +7,12 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class ToDoListTableViewController: UITableViewController {
 
-    var itemArr = [Items]()
+    var toDoItems: Results<Items>?
+    let realm = try! Realm()
     
     var selectedCategory: Category? {
         didSet {
@@ -20,7 +21,6 @@ class ToDoListTableViewController: UITableViewController {
     }
     
     let defaults = UserDefaults.standard
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
 
 
     
@@ -40,44 +40,55 @@ class ToDoListTableViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         // #warning Incomplete implementation, return the number of rows
-        return itemArr.count
+        return toDoItems?.count ?? 1
     }
 
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath)
 
-        let item = itemArr[indexPath.row]
+        if let item = toDoItems?[indexPath.row] {
+            
+            cell.textLabel?.text = item.title
+            
+            cell.accessoryType = item.done ? .checkmark : .none
+            
+            //sis piecas rindas tiek aizstatas ar rindu virs
+            //        if item.done == true {
+            //            cell.accessoryType = .checkmark
+            //        } else {
+            //            cell.accessoryType = .none
+            //        }
+            
+        } else {
+            
+            cell.textLabel?.text = "No Items Added"
+            
+        }
         
-        cell.textLabel?.text = item.title
         
-        cell.accessoryType = item.done ? .checkmark : .none
-
-//sis piecas rindas tiek aizstatas ar rindu virs
-//        if item.done == true {
-//            cell.accessoryType = .checkmark
-//        } else {
-//            cell.accessoryType = .none
-//        }
         
         return cell
     }
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
-        //////
-        //delet from array and core data
-        //context.delete(itemArr[indexPath.row])
-        //itemArr.remove(at: indexPath.row)
-        //////
-        // update txt in table
-       // itemArr[indexPath.row].setValue("Completed", forKey: "title")
-        //////
+        if let item = toDoItems?[indexPath.row] {
+            
+            do {
+                try realm.write {
+                 
+                   // realm.delete(item)
+                    
+                       item.done = !item.done
+                }
+            } catch{
+                print(error)
+            }
+        }
         
-        
-        itemArr[indexPath.row].done = !itemArr[indexPath.row].done
+        tableView.reloadData()
 
-        saveItems()
         
         tableView.deselectRow(at: indexPath, animated: true)
         
@@ -107,16 +118,22 @@ class ToDoListTableViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             
-            
-            let newItem = Items(context: self.context)
-            newItem.title = textField.text!
-            newItem.done = false
-            newItem.parentCategory = self.selectedCategory
-            
-            self.itemArr.append(newItem)
-            
-            self.saveItems()
-
+            if let currentCatogry = self.selectedCategory {
+                do {
+                    try self.realm.write {
+                        let newItem = Items()
+                        newItem.title = textField.text!
+                        currentCatogry.item.append(newItem)
+                        newItem.dateCreated = Date()
+                    }
+                } catch {
+                    
+                }
+                
+                
+            }
+    
+            self.tableView.reloadData()
         }
         
         alert.addTextField { (alertTextField) in
@@ -134,40 +151,14 @@ class ToDoListTableViewController: UITableViewController {
     func saveItems() {
         
         
-        do{
-            
-           try context.save()
-            
-        } catch {
-
-            print("Error saving context \(error)")
-        
-        }
-        
-        self.tableView.reloadData()
+      
         
     }
     
-    func loadItems(with request: NSFetchRequest<Items> = Items.fetchRequest(), predicate: NSPredicate? = nil) {
+    func loadItems() {
 
-        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
-        
-        if let additionalPredicate = predicate {
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
-        } else {
-            
-            request.predicate = categoryPredicate
-            
-        }
-        
-        do {
-       
-            itemArr = try context.fetch(request)
-        } catch {
-            
-            print("Error fetching \(error)")
-        }
-        
+      toDoItems = selectedCategory?.item.sorted(byKeyPath: "title", ascending: true)
+
         tableView.reloadData()
     }
     
@@ -177,36 +168,31 @@ class ToDoListTableViewController: UITableViewController {
 }
 
 extension ToDoListTableViewController: UISearchBarDelegate {
-    
-    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        
-        let request : NSFetchRequest<Items> = Items.fetchRequest()
-        
-        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
-        // [cd] - sis izdara lai meklesana butu neatkariga no burta izmera (case vs CASE) un ari lai visadas garumzimes/ umlauti (diacritic) utt
-        
-        request.sortDescriptors  = [NSSortDescriptor(key: "title", ascending: true)]
-        
-        loadItems(with: request, predicate: predicate)
 
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+     
+        //toDoItems = toDoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "title", ascending: true)
+       toDoItems = toDoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "dateCreated", ascending: true)
+
+        tableView.reloadData()
         
     }
-    
+
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-        
+
         if searchBar.text?.count == 0 {
-            
+
             loadItems()
-            
+
             DispatchQueue.main.async {
-                
+
                 searchBar.resignFirstResponder()
-                
+
             }
         }
     }
-    
-    
+
+
 }
 
 

@@ -8,8 +8,9 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class CategoryTableViewController: UITableViewController {
+class CategoryTableViewController: SwipeTableViewController {
     
     let realm = try! Realm()
     
@@ -22,6 +23,10 @@ class CategoryTableViewController: UITableViewController {
         super.viewDidLoad()
 
         loadCategory()
+        
+        tableView.separatorStyle = .none
+        
+        tableView.rowHeight = 90.0
 
     }
 
@@ -42,11 +47,29 @@ class CategoryTableViewController: UITableViewController {
         return categories?.count ?? 1
     }
 
+
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
+        
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        
+        if let category = categories?[indexPath.row] {
+            
+           // cell.textLabel?.text = categories?[indexPath.row].name ?? "No Categories added yet"
+            cell.textLabel?.text = category.name
+            
+            guard let categoryColor = UIColor(hexString: category.cellColor) else {fatalError()}
 
-        cell.textLabel?.text = categories?[indexPath.row].name ?? "No Categories added yet"
+           // cell.backgroundColor = UIColor(hexString: (categories?[indexPath.row].cellColor) ?? "1D9BF6")
+
+            cell.backgroundColor = UIColor(hexString: category.cellColor)
+            
+            cell.textLabel?.textColor = ContrastColorOf(categoryColor, returnFlat: true)
+            
+        }
+        
+        
+        
         
         return cell
     }
@@ -85,6 +108,7 @@ class CategoryTableViewController: UITableViewController {
             
             let newCat = Category()
             newCat.name = textField.text!
+            newCat.cellColor = UIColor.randomFlat.hexValue()
             
             self.saveCategory(category: newCat)
             
@@ -127,11 +151,27 @@ class CategoryTableViewController: UITableViewController {
         
         categories = realm.objects(Category.self)
         
+    }
+    
+    override func updateModel(at indexPath: IndexPath) {
         
+        if let item = self.categories?[indexPath.row] {
 
+            do {
+                try self.realm.write {
+
+                    self.realm.delete(item)
+                }
+            } catch{
+                print(error)
+            }
+        }
+        
     }
 
 }
+
+
 
 
 
